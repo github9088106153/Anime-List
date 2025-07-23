@@ -1,53 +1,79 @@
+window.onload = () => {
+  renderAnimeList();
+};
 
 async function addAnime() {
-  const inputEl = document.getElementById("animeInput");
-  const animeName = inputEl.value.trim();
+  const input = document.getElementById("animeInput");
+  const animeName = input.value.trim().toLowerCase();
   if (!animeName) return;
-  inputEl.value = "";  // Clear input after fetch
-  const response = await fetch(`https://api.jikan.moe/v4/anime?q=${animeName}&limit=1`);
-  const data = await response.json();
-  if (data.data && data.data.length > 0) {
-    const anime = data.data[0];
-    const card = {
-      id: anime.mal_id,
-      image: anime.images.jpg.image_url
-    };
-    saveAnime(card);
-    renderAnimeList();
-  } else {
-    alert("Anime not found!");
+  input.value = ""; // Clear input
+
+  try {
+    const response = await fetch(`https://api.jikan.moe/v4/anime?q=${animeName}&limit=1`);
+    const data = await response.json();
+
+    if (data.data && data.data.length > 0) {
+      const anime = data.data[0];
+      const saved = JSON.parse(localStorage.getItem("animeList") || "[]");
+
+      const alreadyExistsIndex = saved.findIndex(a => a.id === anime.mal_id);
+      if (alreadyExistsIndex !== -1) {
+        scrollToAnime(anime.mal_id);
+        return;
+      }
+
+      saved.push({ id: anime.mal_id, image: anime.images.jpg.image_url });
+      localStorage.setItem("animeList", JSON.stringify(saved));
+      renderAnimeList(() => scrollToAnime(anime.mal_id));
+    } else {
+      alert("Anime not found!");
+    }
+  } catch (err) {
+    alert("Error fetching anime data!");
+    console.error(err);
   }
 }
 
-function saveAnime(anime) {
+function renderAnimeList(callback) {
+  const list = document.getElementById("animeList");
+  list.innerHTML = "";
   const saved = JSON.parse(localStorage.getItem("animeList") || "[]");
-  const exists = saved.find(a => a.id === anime.id);
-  if (!exists) {
-    saved.push(anime);
-    localStorage.setItem("animeList", JSON.stringify(saved));
-  }
+
+  saved.forEach((anime, index) => {
+    const card = document.createElement("div");
+    card.className = "anime-card";
+    card.id = `anime-${anime.id}`;
+    card.style.position = "relative";
+    card.innerHTML = `
+      <img src="${anime.image}" alt="Anime Logo" style="width: 100%; border-radius: 8px;">
+      <button onclick="deleteAnime(${index})"
+        style="position: absolute; top: 4px; right: 4px; background: #000000; color: white; border: none; border-radius: 100%; width: 10px; height: 35px; cursor: pointer;">
+        ✖
+      </button>
+    `;
+    list.appendChild(card);
+  });
+
+  updateCounterDisplay(saved.length);
+  if (typeof callback === "function") callback();
 }
 
-function deleteAnime(id) {
-  let saved = JSON.parse(localStorage.getItem("animeList") || "[]");
-  saved = saved.filter(a => a.id !== id);
+
+function deleteAnime(index) {
+  const saved = JSON.parse(localStorage.getItem("animeList") || "[]");
+  saved.splice(index, 1);
   localStorage.setItem("animeList", JSON.stringify(saved));
   renderAnimeList();
 }
 
-function renderAnimeList() {
-  const list = document.getElementById("animeList");
-  list.innerHTML = "";
-  const saved = JSON.parse(localStorage.getItem("animeList") || "[]");
-  saved.forEach(anime => {
-    const card = document.createElement("div");
-    card.className = "anime-card";
-    card.innerHTML = `
-      <button class="delete-btn" onclick="deleteAnime(${anime.id})">✖</button>
-      <img src="${anime.image}" alt="Anime Logo">
-    `;
-    list.appendChild(card);
-  });
+function scrollToAnime(id) {
+  const el = document.getElementById(`anime-${id}`);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 }
 
-window.onload = renderAnimeList;
+function updateCounterDisplay(count) {
+  const counter = document.getElementById("animeCounter");
+  counter.textContent = `Total Animes: ${count}`;
+}
